@@ -1,0 +1,15 @@
+id: SimpleJSON
+key: SimpleJSON
+name: Simple JSON API
+description: Provides a simple JSON API.
+plugin_author: Byrne Reese
+schema_version: 0.9
+
+config_settings:
+  SimpleJSONAPIScript:
+    default: json.cgi
+
+applications:
+  simple_json_api:
+    handler: 'Melody::API::SimpleJSON'
+
