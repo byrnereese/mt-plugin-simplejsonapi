@@ -15,10 +15,14 @@ use constant {
 
 sub init {
     my $app = shift;
-    debug('Initializing app...');
+    debug('Initializing app.');
     $app->{no_read_body} = 1
       if $app->request_method eq 'POST' || $app->request_method eq 'PUT';
-    $app->SUPER::init(@_) or return $app->error("Initialization failed");
+
+    # TODO - this is throwing off errors
+    $app->SUPER::init(@_) 
+        or return $app->error("Initialization failed");
+
     $app->request_content
       if $app->request_method eq 'POST' || $app->request_method eq 'PUT';
     $app->add_methods( handle => \&handle, );
@@ -29,9 +33,10 @@ sub init {
 }
 
 our $SUBAPPS = {
-    'users'           => 'Melody::API::SimpleJSON::User',
-    'account'         => 'Melody::API::SimpleJSON::Account',
+#    'users'           => 'Melody::API::SimpleJSON::User',
+#    'account'         => 'Melody::API::SimpleJSON::Account',
     'entries'         => 'Melody::API::SimpleJSON::Entries',
+    'blogs'           => 'Melody::API::SimpleJSON::Blogs',
     'help'            => 'Melody::API::SimpleJSON::Help'
 };
 
@@ -73,16 +78,17 @@ sub handle {
         if ($id) {
             $args->{id} = $id;
         }
+        if ($format) {
+            $args->{format} = $format;
+        }
         if ( my $class = $SUBAPPS->{$subapp} ) {
             eval "require $class;";
             bless $app, $class;
-
-            debug( 'Reblessed app as ' . ref $app );
         }
         my $out;
         if ( $app->can($method) ) {
-          # Authentication should be defered to the designated handler since not
-          # all methods require auth.
+            # Authentication should be defered to the designated handler since not
+            # all methods require auth.
             use Data::Dumper;
             debug( "Calling $class::$method with args: " . Dumper($args) );
             $out = $app->$method($args);
@@ -91,7 +97,7 @@ sub handle {
             debug("Drat, app can't process $method");
         }
         if ( $app->{_errstr} ) {
-	    debug('There was an error processing the request.');
+            debug('There was an error processing the request.');
             return;
         }
         return unless defined $out;
@@ -119,19 +125,16 @@ sub handle {
             $app->show_error("Internal Error");
             return;
         }
-	debug("Return as $format: $out_enc");
+        #debug("Return as $format: $out_enc");
         return $out_enc;
     };
-    debug('out='.$out);
     my $e = $@;
     if ( $e ) {
-	debug("An error occured generated encoded output");
+        debug("An error occured generated encoded output");
         $app->error( 500, $e );
         $app->show_error("Internal Error");
     }
-    debug("Last step. Returning $out");
     $app->response_content($out);
-#    return $out;
 }
 
 sub get_auth_info {
@@ -216,8 +219,8 @@ This is what a Twitter Error looks like in XML.
 sub error {
     my $app = shift;
     my ( $code, $msg, $dont_send_body ) = @_;
+    return unless ref($app) && $code && $msg; # TODO - figure out why error is being called from super classes
     debug("Processing error code='$code' with message: '$msg'");
-    return unless ref($app);
     if ( $code && $msg ) {
         $app->response_code($code);
         $app->response_message($msg);

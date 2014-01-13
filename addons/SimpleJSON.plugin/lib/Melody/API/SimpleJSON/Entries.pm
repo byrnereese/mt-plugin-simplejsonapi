@@ -2,12 +2,24 @@ package Melody::API::SimpleJSON::Entries;
 
 use strict;
 use base qw( Melody::API::SimpleJSON );
-use Melody::API::SimpleJSON::Util qw( debug serialize_entry_list );
+use Melody::API::SimpleJSON::Util qw( debug serialize_entry_list serialize_comments serialize_author serialize_tags serialize_entry );
 use MT::Util qw( caturl );
+
+=head2 entries/show
+=cut
+sub show {
+    debug('In Entries::show()');
+    my $app       = shift;
+#    my $is_authed = $app->SUPER::authenticate(AUTH_OPTIONAL);
+    my ($params)  = @_;
+    my $terms     = {};
+    my $args      = {};
+    my $entry     = MT->model('entry')->load( $params->{entry_id} );
+    return serialize_entry( $entry );
+}
 
 =head2 entries/list
 =cut
-
 sub list {
     debug('In Entries::list()');
     my $app       = shift;
@@ -15,8 +27,8 @@ sub list {
     my ($params)  = @_;
     my $terms     = {};
     my $args      = {
-        sort_by   => 'created_on',
-        direction => 'descend',
+        sort_by   => 'id',
+        direction => 'ascend',
     };
 
     # Validate input
@@ -61,8 +73,8 @@ sub list {
         $terms->{id} = { '<=' => $params->{max_id} };
     }
 
-    if ( $params->{since_id} ) {
-        $terms->{id} = { '>' => $params->{since_id} };
+    if ( $params->{since} ) {
+        $terms->{id} = { '>' => $params->{since} };
     }
 
     if ( $params->{page} && is_number( $params->{page} ) ) {
@@ -81,16 +93,20 @@ sub list {
         $i++;
         #      $iter->end, last if $n && $i >= $n;
     }
-    my $list;
-    $list = serialize_entry_list( \@entries );
+    my $list = serialize_entry_list( \@entries, $params->{format} );
+    my $last_id = $#entries >= 0 ? $entries[$#entries]->id : 0;
+    debug('entry count=' . $#entries . ", n=".$n);
     return { 
-	meta  => {
-	    'total' => MT->model('entry')->count({ blog_id => $params->{blog_id} }),
-	    'next' => caturl( $app->base, $app->uri, 'entries', 'list' ) . 
-		"?blog_id=" . $params->{blog_id} . 
-		"&since=" . $entries[$#entries]->id
-	},
-	posts => $list 
+        meta  => {
+            'count' => ($#entries + 1),
+            'total' => MT->model('entry')->count({ blog_id => $params->{blog_id} }),
+            ($#entries + 1) >= $n ? 
+                ( 'next' => caturl( $app->base, $app->uri, 'entries', 'list.'.$params->{format} ) . 
+                  "?blog_id=" . $params->{blog_id} . 
+                  "&since=" . $last_id )
+                : ()
+        },
+        posts => $list 
     };
 #    return { posts => { status => $statuses } };
 }
